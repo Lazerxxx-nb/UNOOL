@@ -33,7 +33,7 @@ const std::unordered_map<std::string, Character::Info> Character::infos = {
 	{"新关羽",          {Level::B, {过江::make, 大盏::make}, {}, 210}},
 	{"卞相壹",          {Level::B, {举报::make, 猥琐::make}, {}, 160}},
 	{"柯洁",            {Level::B, {棋王::make, 金铲::make}, {}, 160}},
-
+	//12323
 };
 
 
