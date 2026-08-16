@@ -221,7 +221,8 @@ opt_ref<Card> Player::chooseToUse() {
 	}
 }
 
-std::vector<ref<Card>> Player::chooseToDiscard(std::size_t num, bool forced,
+std::vector<ref<Card>> Player::chooseToDiscard(const std::wstring& title,
+											   const std::size_t num, const bool forced,
 											   const std::function<bool(const Card&)>& condition) {
 	std::vector<ref<Card>> discardedCards;
 	if (num > handCount()) return discardedCards;
@@ -282,6 +283,25 @@ opt_ref<Card> Player::chooseToGive(Player& target, bool forced,
 	game.broadcastState();
 
 	return card;
+}
+
+opt_ref<Player> Player::choosePlayer(const std::wstring& title, bool forced,
+									 const std::function<bool(const Player&)>& condition) {
+	//选角色
+	const auto& candidates = game.getPlayersIf(condition);
+
+	if (candidates.empty()) {
+		game.broadcastState();
+		return std::nullopt;
+	}
+
+	std::vector<std::wstring> options;
+	for (auto& p : candidates) {
+		options.push_back(p.get().characterNameW());
+	}
+	std::size_t choice = ask(title, options, forced);
+
+	return candidates[choice - 1];
 }
 
 

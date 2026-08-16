@@ -570,7 +570,7 @@ public:
 	void content(Trigger& trigger) override;
 };
 class 大盏 : public PSkillImpl<大盏> {
-	inline static void randomEnlarge(Card& c);
+	static void randomEnlarge(Card& c);
 public:
 	大盏() : PSkillImpl<大盏>(
 		"大盏",
@@ -635,10 +635,68 @@ public:
 	void content(Trigger& trigger) override;
 };
 
-class pskill : public PSkillImpl<pskill> {
+class 淘汰 : public PSkillImpl<淘汰> {
 public:
-	pskill() : PSkillImpl<pskill>(
-		"pskill",
+	淘汰() : PSkillImpl<淘汰>(
+		"淘汰",
+		"每局游戏共限五次，"
+		"你打出数字牌后，可弃置一张点数小于等于该牌一半（向下取整）的同色数字牌；"
+		"你打出功能牌后，可从游戏外随机获得一张同色的功能牌。",
+		5, false,
+		TriggerPlayer::self,
+		TriggerTime::use_card_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	void content(Trigger& trigger) override;
+};
+
+class 光合 : public PSkillImpl<光合> {
+public:
+	光合() : PSkillImpl<光合>(
+		"光合",
+		"当你成为封禁类功能牌的目标时，你可判定："
+		"若结果为数字牌，来源摸一张牌；为功能牌，解除此牌封禁状态。",
+		unlimited, false,
+		TriggerPlayer::self,
+		TriggerTime::card_target_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	void content(Trigger& trigger) override;
+};
+
+class 射门 : public PSkillImpl<射门> {
+public:
+	射门() : PSkillImpl<射门>(
+		"射门",
+		"你打出数字牌后，可令一名角色进行判定，若结果为蓝色，其摸1张牌；"
+		"若判定角色为你，改为弃置一张牌。",
+		unlimited, false,
+		TriggerPlayer::self,
+		TriggerTime::use_card_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	void content(Trigger& trigger) override;
+};
+
+class 招待 : public PSkillImpl<招待> {
+	bool numberCardUsed = false;
+	bool notNumberCardUsed = false;
+public:
+	招待() : PSkillImpl<招待>(
+		"招待",
+		"回合开始时，你可以将一张牌交给一名其他角色（数字牌/非数字牌各限一次）。",
+		2, false,
+		TriggerPlayer::self,
+		TriggerTime::phase_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	void content(Trigger& trigger) override;
+};
+
+class test : public PSkillImpl<test> {
+public:
+	test() : PSkillImpl<test>(
+		"test",
 		"",
 		unlimited, false,
 		TriggerPlayer::self,
@@ -647,9 +705,6 @@ public:
 	bool filter(const Trigger& trigger) const override;
 	void content(Trigger& trigger) override;
 };
-
-
-
 
 
 
@@ -672,12 +727,14 @@ protected:
 	using ASkill::ASkill;
 };
 
+
+
 template<class Derived>
-inline std::unique_ptr<PSkill> PSkillImpl<Derived>::make() {
+std::unique_ptr<PSkill> PSkillImpl<Derived>::make() {
 	return std::make_unique<Derived>();
 }
 
 template<class Derived>
-inline std::unique_ptr<ASkill> ASkillImpl<Derived>::make() {
+std::unique_ptr<ASkill> ASkillImpl<Derived>::make() {
 	return std::make_unique<Derived>();
 }

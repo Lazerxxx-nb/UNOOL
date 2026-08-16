@@ -206,9 +206,8 @@ void 丑皇::content(Trigger& trigger) {
 		carrier.recover(10);
 		break;
 	case 2:
-		carrier.chooseToDiscard(
-			1, true,
-			[](const Card& card)->bool {
+		carrier.chooseToDiscard(L"弃置一张非数字牌", 1,
+								true, [](const Card& card)->bool {
 			return !card.isNumber();
 		});
 		break;
@@ -254,17 +253,13 @@ void 家暴::content(Trigger& trigger) {
 		return;
 	}
 
-	std::size_t targetId;
-
 	std::vector<std::wstring> options;
 	for (auto& p : candidates) {
 		options.push_back(p.get().characterNameW());
 	}
 	std::size_t choice = carrier.ask(L"选择家暴目标：", options, true);
-	targetId = candidates[choice - 1].get().getId();
 
-
-	Player& target = game.getPlayerById(targetId);
+	Player& target = candidates[choice - 1].get();
 	std::size_t damage = unool::math::ceil(target.getMaxHp() * 0.1);
 	target.takeDamage(damage, trigger.getCarrier());
 	std::cout << "<技能> " << carrier.characterName() << "对" << target.characterName() << "发动家暴，造成" << damage << "点伤害！" << std::endl;
@@ -294,12 +289,12 @@ void 做题::content(Trigger& trigger) {
 	Card& card = trigger.getCard();
 	Player& carrier = trigger.getCarrier();
 	if (card.isNumber()) {
-		carrier.chooseToDiscard(1, true,
-								[](const Card& c)->bool { return !c.isNumber(); });
+		carrier.chooseToDiscard(L"弃置一张非数字牌", 1,
+								true, [](const Card& c)->bool { return !c.isNumber(); });
 	}
 	else {
-		carrier.chooseToDiscard(1, true,
-								[](const Card& c)->bool { return c.isNumber(); });
+		carrier.chooseToDiscard(L"弃置一张数字牌", 1,
+								true, [](const Card& c)->bool { return c.isNumber(); });
 	}
 }
 
@@ -354,8 +349,8 @@ void 雷剑::content(Trigger& trigger) {
 	Card& card = trigger.getCard();
 	Card::Color color = card.getColor();
 
-	auto discarded = carrier.chooseToDiscard(1, false,
-											 [color](const Card& c)->bool {
+	auto discarded = carrier.chooseToDiscard(L"弃置一张" + Card::to_wstring(color) + L"色数字牌", 1,
+											 false, [color](const Card& c)->bool {
 		return c.isNumber() && c.getColor() == color;
 	});
 
@@ -391,7 +386,7 @@ bool 卖棋::filter(const Trigger& trigger) const {
 }
 void 卖棋::content(Trigger& trigger) {
 	Player& carrier = trigger.getCarrier();
-	carrier.chooseToDiscard(1, true, [](const Card& card) {
+	carrier.chooseToDiscard(L"弃置一张万能牌", 1, true, [](const Card& card) {
 		return card.isWild();
 	});
 	carrier.recover(10);
@@ -591,7 +586,7 @@ void 窃观::content(Trigger& trigger) {
 	std::wstring title = L"【窃观】" + drawer.characterNameW()
 		+ L"获得了 " + Card::to_wstring(card.getColor())
 		+ L" " + Card::to_wstring(card.getName()) + L"（需确认）";
-	carrier.ask(title, { L"确认" }, true);
+	carrier.hint(title);
 }
 
 
@@ -773,7 +768,7 @@ bool 大脚::filter(const Trigger& trigger) const {
 	});
 }
 void 大脚::content(Trigger& trigger) {
-	trigger.getCarrier().chooseToDiscard(1, true, [](const Card& c) {
+	trigger.getCarrier().chooseToDiscard(L"弃置一张万能牌", 1, true, [](const Card& c) {
 		return c.isWild();
 	});
 	trigger.getCarrier().getHand().forEachIf(
@@ -878,7 +873,7 @@ bool 棋王::filter(const Trigger& trigger) const {
 		&& trigger.getCard() == trigger.getGame().getDiscardPile()[1];
 }
 void 棋王::content(Trigger& trigger) {
-	trigger.getCarrier().chooseToDiscard(1, true);
+	trigger.getCarrier().chooseToDiscard(L"弃置一张手牌", 1, true);
 }
 
 
@@ -888,4 +883,98 @@ bool 金铲::filter(const Trigger& trigger) const {
 void 金铲::content(Trigger& trigger) {
 	trigger.getNumber() = 0;
 	trigger.getPlayer().takeDamage(1, trigger.getCarrier());
+}
+
+
+//==============淘汰=============
+/*"每局游戏共限五次，"
+"你打出数字牌后，可弃置一张点数小于等于该牌一半（向下取整）的同色数字牌；"
+"你打出功能牌后，可从游戏外随机获得一张同色的功能牌。",*/
+bool 淘汰::filter(const Trigger& trigger) const {
+	Card& card = trigger.getCard();
+	if (card.isNumber()) {
+		int half = static_cast<int>(unool::math::floor(card.value() / 2.0));
+		return trigger.getCarrier().handInclude([&card, &half](const Card& c) {
+			return c.value() <= half && c.getColor() == card.getColor() && c.isNumber();
+		});
+	}
+	else return card.isAction();
+}
+void 淘汰::content(Trigger& trigger) {
+	Card& card = trigger.getCard();
+	Player& carrier = trigger.getCarrier();
+	if (card.isNumber()) {
+		int half = static_cast<int>(unool::math::floor(card.value() / 2.0));
+		carrier.chooseToDiscard(
+			L"弃置一张点数 <= " + std::to_wstring(half) + L"的" +
+			Card::to_wstring(card.getColor()) + L"色数字牌", 1, true, [&card, &half](const Card& c) {
+			return c.value() <= half && c.getColor() == card.getColor() && c.isNumber();
+		});
+	}
+	else if (card.isAction()) {
+		trigger.getCarrier().gainCard(Card::make(
+			card.getColor(),
+			Card::actionCards[unool::random::randomSize_t(0, 2)]
+		));
+	}
+}
+
+
+
+bool 光合::filter(const Trigger& trigger) const {
+	return trigger.getCard().is(Card::Name::action_ban, Card::Name::action_draw2);
+}
+void 光合::content(Trigger& trigger) {
+	Card& card = trigger.getGame().judge();
+	if (card.isNumber()) {
+		trigger.getSource().draw(1);
+	}
+	else if (card.isAction()) {
+		trigger.getCard().cancelEffect();
+	}
+}
+
+
+
+bool 射门::filter(const Trigger& trigger) const {
+	return trigger.getCard().isNumber();
+}
+
+void 射门::content(Trigger& trigger) {
+	GameLogic& game = trigger.getGame();
+	//判定
+	if (game.judge().getColor() != Card::Color::blue) return;
+
+	//选角色
+	Player& carrier = trigger.getCarrier();
+	const auto& target = carrier.choosePlayer(L"选择射门目标：", true);
+	if (!target.has_value()) return;
+
+	//执行效果
+	if (target.value().get() == carrier) {
+		target.value().get().chooseToDiscard(L"[射门] 弃置一张牌", 1, true);
+	}
+	else {
+		target.value().get().draw(1);
+	}
+}
+
+
+
+
+
+
+bool test::filter(const Trigger& trigger) const {
+	return true;
+}
+void test::content(Trigger& trigger) {
+	std::cout << "判定：" << trigger.getGame().judge() << std::endl;
+}
+
+bool 招待::filter(const Trigger& trigger) const {
+	return false;
+}
+
+void 招待::content(Trigger& trigger) {
+	
 }
