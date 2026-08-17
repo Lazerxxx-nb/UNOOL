@@ -12,6 +12,12 @@ class GameLogic;
 class GameRenderer;
 
 class Player {
+public:
+	enum class DrawReason {
+		unknown,
+		phase_draw,
+		skill
+	};
 private:
 	std::size_t id = 0;
 	std::unique_ptr<Hand> hand = std::make_unique<Hand>();
@@ -82,8 +88,8 @@ public:
 
 
 	// === 游戏逻辑 ===
-	void draw(std::size_t num);
-	void drawTo(const std::size_t num);
+	void draw(std::size_t num, const DrawReason reason = DrawReason::unknown);
+	void drawTo(const std::size_t num, const DrawReason reason = DrawReason::unknown);
 
 	Card& useCardByIndex(const std::size_t cardIndex);
 	void discardByIndex(const std::size_t cardIndex);
@@ -103,20 +109,37 @@ public:
 	// === 交互（网络 / 选择）===
 	std::vector<ref<Card>> chooseToDiscard(const std::wstring& title,
 										   const std::size_t num, const bool forced,
-										   const std::function<bool(const Card&)> &
+										   const std::function<bool(const Card&)>& condition
 										   = unool::alwaysTrue);
+	void chooseToRecast(const std::wstring& title,
+						const std::size_t num, const bool forced,
+						const std::function<bool(const Card&)>& condition
+						= unool::alwaysTrue);
+	void decree(const std::wstring& title,
+				const std::size_t num, const bool forced,
+				const std::function<bool(const Card&)>& condition
+				= unool::alwaysTrue);
+	void inherit(std::unique_ptr<Card>& card);
+
 	opt_ref<Card> chooseToOperate(const std::wstring& title, bool forced,
 								  const std::function<bool(const Card&)>& condition,
 								  const std::function<void(Card&)>& operation);
 	opt_ref<Card> chooseToGive(Player& target, bool forced,
 							   const std::function<bool(const Card&)>& condition
 							   = unool::alwaysTrue);
+
+
 	opt_ref<Player> choosePlayer(const std::wstring& title, bool forced,
 								 const std::function<bool(const Player&)>& condition
 								 = unool::alwaysTrue);
+	opt_ref<Player> chooseOtherPlayer(const std::wstring& title, bool forced,
+									  const std::function<bool(const Player&)>& condition
+									  = unool::alwaysTrue);
 	std::size_t ask(const std::wstring& title, const std::vector<std::wstring>& options,
 					bool forced, std::optional<std::chrono::milliseconds> timeoutMs = std::nullopt);
 	void hint(const std::wstring& message);
+	Card& judge();
+	void showCard(const Card& card);
 
 	// === 回合流程 ===
 	void phaseBegin();

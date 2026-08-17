@@ -17,23 +17,26 @@ void Player::recover(std::size_t num) {
 
 // === 游戏逻辑 ===
 
-void Player::draw(std::size_t number) {
+void Player::draw(std::size_t number, const DrawReason reason) {
 	std::cout << "玩家" << id << "(" << characterName() << ")摸了" << number << "张牌" << std::endl;
 	game.launchPSkills(PSkill::TriggerTime::draw_begin, *this, std::nullopt, std::nullopt, number);
+	if (hasPSkill("巨富") && reason == DrawReason::phase_draw) number += 1;
+
+	std::vector<ref<Card>> drawnCards;
+	drawnCards.reserve(number);
+
 	for (std::size_t i = 0; i < number; ++i) {
-		hand->push_back(game.getPile().take_front(game.getDiscardPile()));
+		auto cardPtr = game.getPile().take_front(game.getDiscardPile());
+		hand->push_back(std::move(cardPtr));
+		drawnCards.emplace_back(hand->back());
 	}
-	if (number == 1 && !hand->empty()) {
-		Card& lastCard = hand->getCardByIndex(hand->count() - 1);
-		game.launchPSkills(PSkill::TriggerTime::draw_end, *this, lastCard, std::nullopt, number);
-	}
-	else {
-		game.launchPSkills(PSkill::TriggerTime::draw_end, *this, std::nullopt, std::nullopt, number);
-	}
+
+	game.launchPSkills(PSkill::TriggerTime::draw_end, *this, drawnCards, std::nullopt, number);
 }
 
-void Player::drawTo(const std::size_t num) {
-	if (const std::size_t _handCount = handCount(); _handCount < num) draw(num - _handCount);
+void Player::drawTo(const std::size_t num, const DrawReason reason) {
+	if (const std::size_t _handCount = handCount(); _handCount < num)
+		draw(num - _handCount, reason);
 }
 
 //返回使用牌的引用
@@ -70,7 +73,11 @@ Card& Player::useCardByIndex(const std::size_t cardIndex) {
 }
 
 void Player::discardByIndex(const std::size_t cardIndex) {
-	game.putCardToDiscardPile(hand->takeCardByIndex(cardIndex));
+	game.launchPSkills(PSkill::TriggerTime::lose_card_begin, *this);
+	std::unique_ptr<Card> card = hand->takeCardByIndex(cardIndex);
+	ref<Card> cardRef = *card;
+	game.putCardToDiscardPile(std::move(card));
+	game.launchPSkills(PSkill::TriggerTime::lose_card_end, *this, cardRef, std::nullopt);
 }
 
 std::unique_ptr<Card> Player::takeCardByIndex(const std::size_t cardIndex) {
@@ -103,33 +110,34 @@ void Player::ban(Player& source, Card& card) {
 // === 回合流程 ===
 
 void Player::phaseBegin() {
-	game.launchPSkills(PSkill::TriggerTime::phase_begin, *this, std::nullopt, std::nullopt);
+	game.launchPSkills(PSkill::TriggerTime::phase_begin, *this);
 }
 
 //返回是否出牌
 bool Player::phaseUse1() {
-	game.launchPSkills(PSkill::TriggerTime::phase_use1_begin, *this, std::nullopt, std::nullopt);
+	game.launchPSkills(PSkill::TriggerTime::phase_use1_begin, *this);
 	auto card = chooseToUse();
 	if (card.has_value())
-		game.launchPSkills(PSkill::TriggerTime::phase_use1_end, *this, card.value().get(), std::nullopt);
+		game.launchPSkills(PSkill::TriggerTime::phase_use1_end, *this, card.value().get());
 	else
-		game.launchPSkills(PSkill::TriggerTime::phase_use1_end, *this, std::nullopt, std::nullopt);
+		game.launchPSkills(PSkill::TriggerTime::phase_use1_end, *this);
 	return card.has_value();
 }
 
 void Player::phaseDraw() {
-	game.launchPSkills(PSkill::TriggerTime::phase_draw_begin, *this, std::nullopt, std::nullopt);
+	int drawCount = 1;
+	game.launchPSkills(PSkill::TriggerTime::phase_draw_begin, *this);
 	draw(hasPSkill("巨富") ? 2 : 1);
-	game.launchPSkills(PSkill::TriggerTime::phase_draw_end, *this, std::nullopt, std::nullopt);
+	game.launchPSkills(PSkill::TriggerTime::phase_draw_end, *this);
 }
 
 void Player::phaseUse2() {
-	game.launchPSkills(PSkill::TriggerTime::phase_use2_begin, *this, std::nullopt, std::nullopt);
+	game.launchPSkills(PSkill::TriggerTime::phase_use2_begin, *this);
 	chooseToUse();
 }
 
 void Player::phaseEnd() {
-	game.launchPSkills(PSkill::TriggerTime::phase_end, *this, std::nullopt, std::nullopt);
+	game.launchPSkills(PSkill::TriggerTime::phase_end, *this);
 }
 
 bool Player::turn() {
@@ -245,6 +253,28 @@ std::vector<ref<Card>> Player::chooseToDiscard(const std::wstring& title,
 	return discardedCards;
 }
 
+void Player::chooseToRecast(const std::wstring& title,
+							const std::size_t num, const bool forced,
+							const std::function<bool(const Card&)>& condition) {
+	game.launchPSkills(PSkill::TriggerTime::recast_begin, *this);
+	chooseToDiscard(title, num, forced, condition);
+	draw(num);
+	game.launchPSkills(PSkill::TriggerTime::recast_begin, *this);
+}
+
+void Player::decree(const std::wstring& title,
+					const std::size_t num, const bool forced,
+					const std::function<bool(const Card&)>& condition) {
+	game.launchPSkills(PSkill::TriggerTime::decree_begin, *this);
+	draw(num);
+	chooseToDiscard(title, num, forced, condition);
+	game.launchPSkills(PSkill::TriggerTime::decree_end, *this);
+}
+
+void Player::inherit(std::unique_ptr<Card>& card) {
+	
+}
+
 opt_ref<Card> Player::chooseToOperate(const std::wstring& title, bool forced,
 									  const std::function<bool(const Card&)>& condition,
 									  const std::function<void(Card&)>& operation) {
@@ -302,6 +332,12 @@ opt_ref<Player> Player::choosePlayer(const std::wstring& title, bool forced,
 	std::size_t choice = ask(title, options, forced);
 
 	return candidates[choice - 1];
+}
+opt_ref<Player> Player::chooseOtherPlayer(const std::wstring& title, bool forced,
+										  const std::function<bool(const Player&)>& condition) {
+	return choosePlayer(title, forced, [this, &condition](const Player& p) {
+		return p != *this && condition(p);
+	});
 }
 
 
@@ -491,4 +527,20 @@ std::size_t Player::ask(const std::wstring& title, const std::vector<std::wstrin
 
 void Player::hint(const std::wstring& message) {
 	ask(message, { L"确认" }, true);
+}
+
+Card& Player::judge() {
+	game.launchPSkills(PSkill::TriggerTime::judge_begin, *this);
+	auto card = game.getPile().takeCardByIndex(0);
+	Card& cardRef = *card;
+	game.getDiscardPile().push_front(std::move(card));
+	game.broadcastState();
+	game.launchPSkills(PSkill::TriggerTime::judge_begin, *this, cardRef);
+	return cardRef;
+}
+
+void Player::showCard(const Card& card) {
+	game.forEachOtherPlayer(*this, [this, &card](Player& p) {
+		p.hint(unool::string::to_utf16(characterName()) + L"展示了" + card.toWString());
+	});
 }
