@@ -50,6 +50,13 @@ bool GameLogic::playersSatisfy(const std::function<bool(std::vector<std::unique_
 	return condition(players);
 }
 
+bool GameLogic::playersInclude(const std::function<bool(const Player&)>& condition) {
+	for (const auto& p : players) {
+		if (condition(*p)) return true;
+	}
+	return false;
+}
+
 const std::vector<ref<Player>> GameLogic::getPlayers() const {
 	std::vector<ref<Player>> refs;
 	for (const auto& pl : players) {
@@ -134,6 +141,7 @@ void GameLogic::determineSeatOrder() {
 }
 
 void GameLogic::initPlayers() {
+	players.clear();
 	//先用"白板"创建两个Player，以便使用ask
 	for (std::size_t i = 0; i < 2; ++i) {
 		auto p = std::make_unique<Player>(i, *this, Character::make("白板"));
@@ -201,7 +209,7 @@ void GameLogic::banPhase(std::size_t bannerId, std::size_t targetId, SelectionSt
 		banOpts.push_back(formatCharacterLabelW(ch));
 	}
 	std::size_t banChoice = players[bannerId]->ask(
-		L"禁用对方的一个角色：", banOpts, false, 10000ms);
+		L"禁用对方的一个角色：", banOpts, false, 30000ms);
 	if (banChoice > 0) {
 		state.bannedIdx[targetId] = banChoice - 1;
 		std::wstring bannedCharLabel = formatCharacterLabelW(state.cands[targetId][banChoice - 1]);
@@ -237,6 +245,7 @@ void GameLogic::selectCharacter(std::size_t playerId, const SelectionState& stat
 	chooseSkinAndSet(*players[playerId], charName);
 }
 void GameLogic::initPlayers(const std::vector<std::string>& chars) {
+	players.clear();
 	if (chars.size() != 2) throw std::invalid_argument("指定角色时，角色数量必须为2");
 
 	for (std::size_t i = 0; i < 2; ++i) {

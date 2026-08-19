@@ -73,6 +73,7 @@ public:
 	void clearHand() { hand->clear(); hand->resetSelectedIndex(); }
 	void handSelectLeft() { hand->selectLeft(); }
 	void handSelectRight() { hand->selectRight(); }
+	void handSelectLast() { hand->selectLast(); }
 	void sortHand() { hand->sort(); }
 
 	void gainCard(std::unique_ptr<Card> card) { hand->push_back(std::move(card)); }
@@ -86,8 +87,7 @@ public:
 	}
 #pragma endregion
 
-
-	// === 游戏逻辑 ===
+#pragma region 游戏逻辑
 	void draw(std::size_t num, const DrawReason reason = DrawReason::unknown);
 	void drawTo(const std::size_t num, const DrawReason reason = DrawReason::unknown);
 
@@ -97,16 +97,22 @@ public:
 	bool canUse(const Card& card);
 	void give(Player& other, std::unique_ptr<Card> card) { other.gainCard(std::move(card)); }
 
-	// === 技能 / 状态 ===
+#pragma endregion
+
+#pragma region 技能 / 状态
 	void launchPSkills(const PSkill::TriggerTime& currentTriggerTime, PSkill::Trigger& trigger) { character->launchPSkills(currentTriggerTime, trigger); }
 	void ban(Player& source, Card& card);
 	void unban() { banned = false; }
 
-	// === 导航 ===
+#pragma endregion
+
+#pragma region 导航
 	Player& next() const;
 	Player& prev() const;
 
-	// === 交互（网络 / 选择）===
+#pragma endregion
+
+#pragma region 交互
 	std::vector<ref<Card>> chooseToDiscard(const std::wstring& title,
 										   const std::size_t num, const bool forced,
 										   const std::function<bool(const Card&)>& condition
@@ -124,28 +130,32 @@ public:
 	opt_ref<Card> chooseToOperate(const std::wstring& title, bool forced,
 								  const std::function<bool(const Card&)>& condition,
 								  const std::function<void(Card&)>& operation);
-	opt_ref<Card> chooseToGive(Player& target, bool forced,
-							   const std::function<bool(const Card&)>& condition
+	opt_ref<Card> chooseToGive(const std::wstring& title, Player& target,
+							   bool forced, const std::function<bool(const Card&)>& condition
 							   = unool::alwaysTrue);
 
 
 	[[nodiscard]] opt_ref<Player> choosePlayer(const std::wstring& title, bool forced,
-								 const std::function<bool(const Player&)>& condition
-								 = unool::alwaysTrue);
+											   const std::function<bool(const Player&)>& condition
+											   = unool::alwaysTrue);
 	[[nodiscard]] opt_ref<Player> chooseOtherPlayer(const std::wstring& title, bool forced,
-									  const std::function<bool(const Player&)>& condition
-									  = unool::alwaysTrue);
+													const std::function<bool(const Player&)>& condition
+													= unool::alwaysTrue);
 	[[nodiscard]] std::size_t ask(const std::wstring& title, const std::vector<std::wstring>& options,
-					bool forced, std::optional<std::chrono::milliseconds> timeoutMs = std::nullopt);
+								  bool forced, std::optional<std::chrono::milliseconds> timeoutMs = std::nullopt);
 	void hint(const std::wstring& message);
 	[[nodiscard]] Card& judge();
 	void showCard(const Card& card);
 
-	// === 回合流程 ===
+#pragma endregion
+
+#pragma region 回合流程
 	void phaseBegin();
 	bool phaseUse1();
 	void phaseDraw();
 	void phaseUse2();
 	void phaseEnd();
 	bool turn();
+#pragma endregion
+
 };
