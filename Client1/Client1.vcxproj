@@ -54,7 +54,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{45a5fe58-4352-4986-826e-87e7c0b44a2a}</ProjectGuid>
+    <ProjectGuid>{3B9AC8A6-E69A-9411-9A09-177A5D66BA64}</ProjectGuid>
     <RootNamespace>Client1</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>

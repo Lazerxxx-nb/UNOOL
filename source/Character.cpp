@@ -16,7 +16,7 @@ const std::unordered_map<std::string, Character::Info> Character::infos = {
 	{"瑜伽一",   {Level::F, {割腕::make, 丑皇::make}, {}, 230}},
 	{"李阳",     {Level::C, {军国::make, 家暴::make}, {}, 185}},
 	{"薛维旭",   {Level::D, {健身::make, 做题::make}, {}, 190}},
-	//{"Tung Tung Tung Tung Tung Tung Tung Tung Tung Sahur", {Level::S, {棍击::make, 神木::make}, {}, 90}},
+	{"Tung Tung Tung Tung Tung Tung Tung Tung Tung Sahur", {Level::S, {棍击::make, 神木::make}, {}, 90}},
 	{"雷电将军", {Level::D, {雷剑::make}, {}, 140}},
 	{"王天一",   {Level::C, {买棋::make, 卖棋::make}, {}, 140}},
 	{"Tralalero Tralala",    {Level::C, {耐克::make}, {}, 160}},
