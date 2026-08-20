@@ -124,8 +124,14 @@ bool Card::isAction() const {
 	return name == Name::action_ban || name == Name::action_draw2
 		|| name == Name::action_rev;
 }
+bool Card::isNotAction() const {
+	return !isAction();
+}
 bool Card::isWild() const {
 	return name == Name::wild_pal || name == Name::wild_draw4;
+}
+bool Card::isNotWild() const {
+	return !isWild();
 }
 int Card::value() const {
 	switch (name) {
@@ -411,7 +417,7 @@ void Hand::display(GameRenderer& renderer, const sf::Vector2f& pos, const sf::Ve
 	std::size_t selectedPos = 0;
 	for (std::size_t i = 0; i < count(); ++i) {
 		cards[i]->display(renderer, { pos.x + dx, pos.y }, cardSize);
-		if (selectedIndex == i) {
+		if (displayPointer && selectedIndex == i) {
 			selectedPos = dx;
 			dx += static_cast<std::size_t>(cardSize.x);
 		}
