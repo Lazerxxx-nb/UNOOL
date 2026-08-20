@@ -754,7 +754,7 @@ class 朔日 : public PSkillImpl<朔日> {
 public:
 	朔日() : PSkillImpl<朔日>(
 		"朔日",
-		"你打出黄色牌后，回复1点体力并可选择一项：\n1.将一张数字牌变为黄色并令其点数+1/-1；\n2.将一张功能牌变为黄色的随机功能牌。",
+		"你打出黄色牌后，回复1点体力并可选择一项：\n1.将一张数字牌变为黄色且可令其点数+1/-1；\n2.将一张功能牌变为黄色的随机功能牌。",
 		unlimited, false,
 		TriggerPlayer::self,
 		TriggerTime::use_card_end
