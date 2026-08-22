@@ -45,6 +45,7 @@ public:
 	std::wstring characterNameW() const { return character->getNameW(); }
 	std::string skin() const { return character->getSkin(); }
 	std::string skillsName() const { return character->skillsName(); }
+	std::string getSkillsText() const { return character->getSkillsText(); }
 	Character::Level characterLevel() const { return character->getLevel(); }
 	std::size_t getHp() const { return character->getHp(); }
 	std::size_t getMaxHp() const { return character->getMaxHp(); }
@@ -88,8 +89,8 @@ public:
 #pragma endregion
 
 #pragma region 游戏逻辑
-	void draw(std::size_t num, const DrawReason reason = DrawReason::unknown);
-	void drawTo(const std::size_t num, const DrawReason reason = DrawReason::unknown);
+	std::vector<ref<Card>> draw(std::size_t num, const DrawReason reason = DrawReason::unknown);
+	std::vector<ref<Card>> drawTo(const std::size_t num, const DrawReason reason = DrawReason::unknown);
 
 	Card& useCardByIndex(const std::size_t cardIndex);
 	void discardByIndex(const std::size_t cardIndex);
@@ -100,8 +101,9 @@ public:
 #pragma endregion
 
 #pragma region 技能 / 状态
-	void launchPSkills(const PSkill::TriggerTime& currentTriggerTime, PSkill::Trigger& trigger) { character->launchPSkills(currentTriggerTime, trigger); }
+	void launchPSkills(const PSkill::TriggerTime& currentTriggerTime, PSkill::Trigger& trigger);
 	void ban(Player& source, Card& card);
+	void ban() { banned = true; }
 	void unban() { banned = false; }
 
 #pragma endregion
@@ -141,6 +143,10 @@ public:
 	[[nodiscard]] opt_ref<Player> chooseOtherPlayer(const std::wstring& title, bool forced,
 													const std::function<bool(const Player&)>& condition
 													= unool::alwaysTrue);
+	[[nodiscard]] std::optional<Card::Color> chooseCardColor(const std::wstring& title, bool forced,
+															 const std::vector<Card::Color>& colors);
+	[[nodiscard]] std::optional<Card::Name> chooseCardName(const std::wstring& title, bool forced,
+															 const std::vector<Card::Name>& names);
 	[[nodiscard]] std::size_t ask(const std::wstring& title, const std::vector<std::wstring>& options,
 								  bool forced, std::optional<std::chrono::milliseconds> timeoutMs = std::nullopt);
 	void hint(const std::wstring& message);

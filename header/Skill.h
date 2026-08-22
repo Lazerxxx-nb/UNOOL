@@ -17,13 +17,13 @@ class GameLogic;
 
 class Skill {
 protected:
+	using limit_t = std::optional<std::size_t>;
 	std::string name = "未知技能";
 	std::string info = "无";
-	std::optional<std::size_t> limit; //每局使用限制次数，std::nullopt代表无次数限制
+	limit_t limit; //每局使用限制次数，std::nullopt代表无次数限制
 	std::size_t count = 0; //使用次数
 public:
 	inline static const auto unlimited = std::nullopt;
-	using limit_t = std::optional<std::size_t>;
 
 	std::string getName() const { return name; }
 	std::wstring getNameW() const { return unool::string::to_utf16(name); }
@@ -106,7 +106,7 @@ public:
 		Player& getPlayer() const { return player.value().get(); }
 		Card& getCard() const {
 			if (cards.value().size() != 1)
-				std::cout << "[警告] cards含有多于一张牌的情况下调用getCard" << std::endl;
+				std::cout << "[警告] 在cards含有多于一张牌的情况下调用getCard" << std::endl;
 			return cards.value().front().get();
 		}
 		std::vector<ref<Card>> getCards() const { return cards.value(); }
@@ -121,22 +121,42 @@ public:
 	virtual bool filter(const Trigger& trigger) const = 0;
 	virtual bool content(Trigger& trigger) = 0;
 
+	//无子技能
 	PSkill(const std::string& name, const std::string& description,
 		   const limit_t& limit, bool forced,
-		   const TriggerPlayer& triggerPlayer, const TriggerTime& triggerTime);
+		   const TriggerPlayer& triggerPlayer,
+		   const TriggerTime& triggerTime);
 
+	//有子技能
+	template<typename... SubSkills>
+		requires (std::same_as<std::decay_t<SubSkills>, std::unique_ptr<PSkill>> && ...)
+	PSkill(const std::string& _name, const std::string& _description,
+		   const limit_t& _limit, bool _forced,
+		   const TriggerPlayer& _triggerPlayer,
+		   const TriggerTime& _triggerTime,
+		   SubSkills&&... _subSkills)
+		: PSkill(_name, _description, _limit, _forced, _triggerPlayer, _triggerTime) {
+		(subSkills.push_back(std::forward<SubSkills>(_subSkills)), ...);
+	}
 	bool matchTrigger(const TriggerTime& currentTriggerTime, const Trigger& trigger) const;
 	void launch(Trigger& trigger);
 	void reset() override;
 	void setForced(const bool newForced);
 
+	std::vector<std::unique_ptr<PSkill>> subSkills;
 private:
 	TriggerPlayer triggerPlayer;
 	TriggerTime triggerTime;
 	bool forced = false;
 };
 
-// CRTP 基类：在 PSkill 外部定义，避免继承不完整类型
+class ASkill : public Skill {
+public:
+	using Factory = std::function<std::unique_ptr<ASkill>()>;
+	ASkill(const std::string& _name, const std::string& _info, const limit_t& _limit);
+};
+
+// CRTP 基类
 template<class Derived>
 class PSkillImpl : public PSkill {
 public:
@@ -144,6 +164,27 @@ public:
 protected:
 	using PSkill::PSkill;
 };
+
+// CRTP 基类
+template<class Derived>
+class ASkillImpl : public ASkill {
+public:
+	static std::unique_ptr<ASkill> make();
+protected:
+	using ASkill::ASkill;
+};
+
+template<class Derived>
+std::unique_ptr<PSkill> PSkillImpl<Derived>::make() {
+	return std::make_unique<Derived>();
+}
+
+template<class Derived>
+std::unique_ptr<ASkill> ASkillImpl<Derived>::make() {
+	return std::make_unique<Derived>();
+}
+
+
 
 class 粪怒 : public PSkillImpl<粪怒> {
 public:
@@ -264,10 +305,10 @@ class 健身 : public PSkillImpl<健身> {
 public:
 	健身() : PSkillImpl<健身>(
 		"健身",
-		"锁定技，每局游戏开始时，回复5点体力。",
+		"锁定技，每局游戏结束时，回复5点体力。",
 		1, true,
 		TriggerPlayer::self,
-		TriggerTime::game_begin
+		TriggerTime::game_end
 	) {}
 	bool filter(const Trigger& trigger) const override;
 	bool content(Trigger& trigger) override;
@@ -391,8 +432,8 @@ class 电音 : public PSkillImpl<电音> {
 public:
 	电音() : PSkillImpl<电音>(
 		"电音",
-		"回合开始时，你可以令手牌中所有数字牌变成随机数字并回复1点体力。",
-		unlimited, false,
+		"每局游戏限十次，回合开始时，你可以令手牌中所有数字牌变成随机数字并回复1点体力。",
+		10, false,
 		TriggerPlayer::self,
 		TriggerTime::phase_begin
 	) {}
@@ -403,7 +444,7 @@ class 蒙面 : public PSkillImpl<蒙面> {
 public:
 	蒙面() : PSkillImpl<蒙面>(
 		"蒙面",
-		"锁定技，当你失去体力时，失去体力的数值减少30% （向下取整）。",
+		"锁定技，当你失去体力时，失去体力的数值减少25% （向下取整）。",
 		unlimited, true,
 		TriggerPlayer::self,
 		TriggerTime::damage_begin
@@ -617,7 +658,7 @@ class 棋王 : public PSkillImpl<棋王> {
 public:
 	棋王() : PSkillImpl<棋王>(
 		"棋王",
-		"当你打出弃牌堆顶同色同名牌后，你可以弃置一张手牌。",
+		"当你打出弃牌堆顶同色同名牌后，你可以弃置两张手牌。",
 		unlimited, false,
 		TriggerPlayer::self,
 		TriggerTime::use_card_end
@@ -629,9 +670,9 @@ class 金铲 : public PSkillImpl<金铲> {
 public:
 	金铲() : PSkillImpl<金铲>(
 		"金铲",
-		"锁定技，当一名角色回复1体力时，改为其失去1体力。",
+		"锁定技，当其他角色回复1体力时，改为其失去1体力。",
 		unlimited, true,
-		TriggerPlayer::anybody,
+		TriggerPlayer::others,
 		TriggerTime::recover_begin
 	) {}
 	bool filter(const Trigger& trigger) const override;
@@ -642,9 +683,9 @@ class 淘汰 : public PSkillImpl<淘汰> {
 public:
 	淘汰() : PSkillImpl<淘汰>(
 		"淘汰",
-		"每局游戏共限五次："
-		"\n你打出数字牌后，可弃置一张点数小于等于该牌一半（向下取整）的同色数字牌；"
-		"\n你打出功能牌后，可从游戏外随机获得一张同色的功能牌。",
+		"每局游戏共限五次：\n"
+		"你打出数字牌后，可弃置一张点数小于等于该牌一半（向下取整）的同色数字牌；\n"
+		"你打出功能牌后，可从游戏外随机获得一张同色的功能牌。",
 		5, false,
 		TriggerPlayer::self,
 		TriggerTime::use_card_end
@@ -657,8 +698,9 @@ class 光合 : public PSkillImpl<光合> {
 public:
 	光合() : PSkillImpl<光合>(
 		"光合",
-		"当你成为封禁类功能牌的目标时，你可判定："
-		"\n若结果为数字牌，来源摸一张牌；\n为功能牌，解除此牌封禁状态。",
+		"当你成为封禁类功能牌的目标时，你可判定：\n"
+		"若结果为数字牌，来源摸一张牌；\n"
+		"为功能牌，解除此牌封禁状态。",
 		unlimited, false,
 		TriggerPlayer::self,
 		TriggerTime::card_target_begin
@@ -682,19 +724,16 @@ public:
 };
 
 class 招待 : public PSkillImpl<招待> {
-	bool numberCardUsed = false;
-	bool notNumberCardUsed = false;
 public:
 	招待() : PSkillImpl<招待>(
 		"招待",
-		"回合开始时，你可以将一张牌交给一名其他角色（数字牌/非数字牌各限一次）。",
-		2, false,
+		"限定技，回合开始时，你可以将一张牌交给一名其他角色。",
+		1, false,
 		TriggerPlayer::self,
 		TriggerTime::phase_begin
 	) {}
 	bool filter(const Trigger& trigger) const override;
 	bool content(Trigger& trigger) override;
-	void reset() override;
 };
 
 class 追番 : public PSkillImpl<追番> {
@@ -754,7 +793,9 @@ class 朔日 : public PSkillImpl<朔日> {
 public:
 	朔日() : PSkillImpl<朔日>(
 		"朔日",
-		"你打出黄色牌后，回复1点体力并可选择一项：\n1.将一张数字牌变为黄色且可令其点数+1/-1；\n2.将一张功能牌变为黄色的随机功能牌。",
+		"你打出黄色牌后，回复1点体力并可选择一项：\n"
+		"1.将一张数字牌变为黄色且可令其点数+1/-1；\n"
+		"2.将一张功能牌变为黄色的随机功能牌。",
 		unlimited, false,
 		TriggerPlayer::self,
 		TriggerTime::use_card_end
@@ -777,30 +818,171 @@ public:
 	void reset() override { PSkill::reset(); setForced(false); }
 };
 
-
-class ASkill : public Skill {
+class 健忘 : public PSkillImpl<健忘> {
 public:
-	using Factory = std::function<std::unique_ptr<ASkill>()>;
-	ASkill(const std::string& _name, const std::string& _info, const limit_t& _limit);
+	健忘() : PSkillImpl<健忘>(
+		"健忘",
+		"每局游戏限两次，回合开始时，你可以任意更改当前的公共颜色。",
+		2, false,
+		TriggerPlayer::self,
+		TriggerTime::phase_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
 };
 
-// CRTP 基类：在 ASkill 外部定义
-template<class Derived>
-class ASkillImpl : public ASkill {
+class 豪赌 : public PSkillImpl<豪赌> {
 public:
-	static std::unique_ptr<ASkill> make();
-protected:
-	using ASkill::ASkill;
+	豪赌() : PSkillImpl<豪赌>(
+		"豪赌",
+		"回合开始时，可进行一次判定：\n"
+		"绿色或黑色，你获得之；\n"
+		"黄色，你跳过此回合；\n"
+		"蓝色，你重铸一张手牌；\n"
+		"红色，你失去5点体力。",
+		unlimited, false,
+		TriggerPlayer::self,
+		TriggerTime::phase_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+
+class 黑帮 : public PSkillImpl<黑帮> {
+public:
+	黑帮() : PSkillImpl<黑帮>(
+		"黑帮",
+		"锁定技，游戏开始时，你随机获得X张万能牌（X为当前局数）。",
+		unlimited, true,
+		TriggerPlayer::self,
+		TriggerTime::game_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+class 拖拉 : public PSkillImpl<拖拉> {
+public:
+	拖拉() : PSkillImpl<拖拉>(
+		"拖拉",
+		"锁定技，其他角色打出万能牌后，你弃置手中所有此牌名的牌并回复弃牌数点体力。",
+		unlimited, true,
+		TriggerPlayer::others,
+		TriggerTime::use_card_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+
+class 互质 : public PSkillImpl<互质> {
+	// 判断两个整数是否互质
+	static bool areCoprime(const int a, const int b);
+	// 判断 vector 中的所有整数是否两两互质
+	static bool isPairwiseCoprime(const std::vector<int>& nums);
+public:
+	互质() : PSkillImpl<互质>(
+		"互质",
+		"锁定技，回合结束时，若你手中数字牌点数两两互质，你失去X点体力\n"
+		"（X为你手中数字牌点数之积）。",
+		unlimited, true,
+		TriggerPlayer::self,
+		TriggerTime::phase_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+
+//难题子技能：回合开始时变牌
+class 难题_变牌 : public PSkillImpl<难题_变牌> {
+	std::shared_ptr<std::vector<Card::Name>> record;
+public:
+	难题_变牌(std::shared_ptr<std::vector<Card::Name>> _record)
+		: PSkillImpl<难题_变牌>(
+			"难题_变牌",
+			"回合开始时，你可将一张非万能牌变为随机已记录点数的同色数字牌。",
+			unlimited, true,
+			TriggerPlayer::self,
+			TriggerTime::phase_begin
+		), record(std::move(_record)) {}
+
+	static std::unique_ptr<PSkill> makeWith(std::shared_ptr<std::vector<Card::Name>> r) {
+		return std::make_unique<难题_变牌>(std::move(r));
+	}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+//难题主技能：摸牌时记录数字
+class 难题 : public PSkillImpl<难题> {
+	std::shared_ptr<std::vector<Card::Name>> record;
+public:
+	难题() : 难题(std::make_shared<std::vector<Card::Name>>()) {}
+
+	难题(std::shared_ptr<std::vector<Card::Name>> _record)
+		: PSkillImpl<难题>(
+			"难题",
+			"你于摸牌阶段获得数字牌时，若点数未记录，记录之。\n"
+			"回合开始时，你可将一张非万能牌变为随机已记录点数的同色数字牌。",
+			unlimited, true,
+			TriggerPlayer::self,
+			TriggerTime::phase_draw_end,
+			难题_变牌::makeWith(_record)
+		), record(_record) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+class 迷烟 : public PSkillImpl<迷烟> {
+public:
+	迷烟() : PSkillImpl<迷烟>(
+		"迷烟",
+		"摸牌阶段结束时，你可展示此阶段摸到的牌，"
+		"令一名其他角色选择弃置一张万能牌或与你展示牌颜色相同的手牌，否则其摸一张牌。",
+		unlimited, false,
+		TriggerPlayer::self,
+		TriggerTime::phase_draw_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+class 创世 : public PSkillImpl<创世> {
+public:
+	创世() : PSkillImpl<创世>(
+		"创世",
+		"游戏开始时，你可选择一个你手中没有的牌名，将一张手牌变为此牌名的牌（颜色自选）。",
+		1, false,
+		TriggerPlayer::self,
+		TriggerTime::game_begin
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+};
+
+class 补天 : public PSkillImpl<补天> {
+	std::vector<Card::Name> record;
+public:
+	补天() : PSkillImpl<补天>(
+		"补天",
+		"锁定技，每种牌名限一次，你打出手中唯一一种牌名的牌后，记录其牌名，然后选择一张手牌变为随机一张未记录的牌。",
+		unlimited, true,
+		TriggerPlayer::self,
+		TriggerTime::use_card_end
+	) {}
+	bool filter(const Trigger& trigger) const override;
+	bool content(Trigger& trigger) override;
+	void reset() override;
 };
 
 
 
-template<class Derived>
-std::unique_ptr<PSkill> PSkillImpl<Derived>::make() {
-	return std::make_unique<Derived>();
-}
 
-template<class Derived>
-std::unique_ptr<ASkill> ASkillImpl<Derived>::make() {
-	return std::make_unique<Derived>();
-}
+
+
+
+
+
+

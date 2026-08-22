@@ -17,7 +17,7 @@ void Player::recover(std::size_t num) {
 
 // === 游戏逻辑 ===
 
-void Player::draw(std::size_t number, const DrawReason reason) {
+std::vector<ref<Card>> Player::draw(std::size_t number, const DrawReason reason) {
 	std::cout << "玩家" << id << "(" << characterName() << ")摸了" << number << "张牌" << std::endl;
 	game.launchPSkills(PSkill::TriggerTime::draw_begin, *this, std::nullopt, std::nullopt, number);
 	if (hasPSkill("巨富") && reason == DrawReason::phase_draw) number += 1;
@@ -32,12 +32,15 @@ void Player::draw(std::size_t number, const DrawReason reason) {
 	}
 
 	if (reason == DrawReason::phase_draw) handSelectLast();
+
 	game.launchPSkills(PSkill::TriggerTime::draw_end, *this, drawnCards, std::nullopt, number);
+	return drawnCards;
 }
 
-void Player::drawTo(const std::size_t num, const DrawReason reason) {
+std::vector<ref<Card>> Player::drawTo(const std::size_t num, const DrawReason reason) {
 	if (const std::size_t _handCount = handCount(); _handCount < num)
-		draw(num - _handCount, reason);
+		return draw(num - _handCount, reason);
+	else return {};
 }
 
 //返回使用牌的引用
@@ -98,6 +101,10 @@ bool Player::canUse(const Card& card) {
 
 // === 技能 / 状态 ===
 
+void Player::launchPSkills(const PSkill::TriggerTime& currentTriggerTime, PSkill::Trigger& trigger) {
+	character->launchPSkills(currentTriggerTime, trigger);
+}
+
 void Player::ban(Player& source, Card& card) {
 	game.launchPSkills(PSkill::TriggerTime::ban_begin, *this, card, source);
 	banned = true;
@@ -123,10 +130,10 @@ bool Player::phaseUse1() {
 }
 
 void Player::phaseDraw() {
-	int drawCount = 1;
-	game.launchPSkills(PSkill::TriggerTime::phase_draw_begin, *this);
-	draw(1, DrawReason::phase_draw);
-	game.launchPSkills(PSkill::TriggerTime::phase_draw_end, *this);
+	std::size_t drawCount = 1;
+	game.launchPSkills(PSkill::TriggerTime::phase_draw_begin, *this, std::nullopt, std::nullopt, drawCount);
+	std::vector<ref<Card>> drawnCards = draw(drawCount, DrawReason::phase_draw);
+	game.launchPSkills(PSkill::TriggerTime::phase_draw_end, *this, drawnCards);
 }
 
 void Player::phaseUse2() {
@@ -139,16 +146,19 @@ void Player::phaseEnd() {
 }
 
 bool Player::turn() {
+	phaseBegin();
+	game.broadcastState();
+	bool used = false;
+
 	if (banned) {
 		std::cout << "玩家" << id << "跳过了他的回合" << std::endl;
 		unban();
-		return false;
+		goto PhaseEnd;
 	}
 
-	phaseBegin();
 	if (game.isGameOver()) return handEmpty();
 
-	bool used = phaseUse1();
+	used = phaseUse1();
 	if (game.isGameOver()) return handEmpty();
 
 	if (!used) {
@@ -159,7 +169,9 @@ bool Player::turn() {
 		if (game.isGameOver()) return handEmpty();
 	}
 
+PhaseEnd:
 	phaseEnd();
+	game.broadcastState();
 	return handEmpty();
 }
 
@@ -187,22 +199,14 @@ std::optional<std::size_t> Player::chooseCard(std::function<bool(const Card&)> c
 		setInput(input);
 
 		switch (input) {
-		case sf::Keyboard::Scancode::Left:
-		case sf::Keyboard::Scancode::A:
-			handSelectLeft();
-			game.broadcastState();
-			break;
-		case sf::Keyboard::Scancode::Right:
-		case sf::Keyboard::Scancode::D:
-			handSelectRight();
-			game.broadcastState();
-			break;
 		case sf::Keyboard::Scancode::Space:
+			hand->setSelectedIndex(clientInput.selectedIndex);
 			sortHand();
 			game.broadcastState();
 			break;
 		case sf::Keyboard::Scancode::Up:
 		case sf::Keyboard::Scancode::W:
+			hand->setSelectedIndex(clientInput.selectedIndex);
 			if (!handEmpty() && condition(hand->getSelectedCard())) {
 				return hand->getSelectedIndex();
 			}
@@ -242,7 +246,7 @@ std::vector<ref<Card>> Player::chooseToDiscard(const std::wstring& title,
 
 	std::size_t discardedCount = 0;
 	while (discardedCount < num) {
-		std::wstring fullTitle = title + L"（" + std::to_wstring(discardedCount + 1) + L"/" + std::to_wstring(num) + L"）"
+		std::wstring fullTitle = title + L"（" + std::to_wstring(discardedCount + 1) + L"/" + std::to_wstring(num) + L"）\n"
 			+ (forced ? L"（↑确认，不可取消）" : L"（↑确认，↓取消）");
 		network.sendPlayerChoice(id, fullTitle, {}, forced);
 		auto index = chooseCard(condition, forced);
@@ -287,8 +291,8 @@ opt_ref<Card> Player::chooseToOperate(const std::wstring& title, bool forced,
 									  const std::function<bool(const Card&)>& condition,
 									  const std::function<void(Card&)>& operation) {
 	ServerNetwork& network = game.getNetwork();
-	if (forced) network.sendPlayerChoice(id, title + L"（↑确认，不可取消）", {}, true);
-	else network.sendPlayerChoice(id, title + L"（↑确认，↓取消）", {}, false);
+	if (forced) network.sendPlayerChoice(id, title + L"\n（↑确认，不可取消）", {}, true);
+	else network.sendPlayerChoice(id, title + L"\n（↑确认，↓取消）", {}, false);
 	std::optional<std::size_t> index = chooseCard(condition, forced);
 	network.sendPlayerChoice(id, L"", {}, false);
 	if (!index.has_value()) return std::nullopt;
@@ -344,6 +348,28 @@ opt_ref<Player> Player::chooseOtherPlayer(const std::wstring& title, bool forced
 	return choosePlayer(title, forced, [this, &condition](const Player& p) {
 		return p != *this && condition(p);
 	});
+}
+
+std::optional<Card::Color> Player::chooseCardColor(const std::wstring& title, bool forced, const std::vector<Card::Color>& colors) {
+	if (colors.empty()) return std::nullopt;
+	std::vector<std::wstring> options;
+	for (const auto& c : colors) {
+		options.push_back(Card::to_wstring(c));
+	}
+	std::size_t choice = ask(title, options, forced);
+	if (choice == 0) return std::nullopt;
+	return colors[choice - 1];
+}
+
+std::optional<Card::Name> Player::chooseCardName(const std::wstring& title, bool forced, const std::vector<Card::Name>& names) {
+	if (names.empty()) return std::nullopt;
+	std::vector<std::wstring> options;
+	for (const auto& n : names) {
+		options.push_back(Card::to_wstring(n));
+	}
+	std::size_t choice = ask(title, options, forced);
+	if (choice == 0) return std::nullopt;
+	return names[choice - 1];
 }
 
 

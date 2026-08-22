@@ -22,7 +22,7 @@ const std::unordered_map<std::string, Character::Info> Character::infos = {
 	{"Tralalero Tralala",    {Level::C, {耐克::make}, {}, 160}},
 	{"Bombardiro Crocodilo", {Level::A, {轰炸::make}, {}, 185}},
 	{"Bumbumbini Guzzini",   {Level::A, {爆破::make}, {}, 185}},
-	{"Alan Walker", {Level::D, {电音::make, 蒙面::make}, {}, 200}},
+	{"Alan Walker", {Level::D, {电音::make, 蒙面::make}, {}, 175}},
 	{"丁真",        {Level::C, {锐刻::make}, {}, 140}},
 	{"代增玉",      {Level::F, {巨富::make, 破产::make}, {}, 275}},
 	{"潘子",        {Level::F, {假酒::make}, {}, 120}},
@@ -40,7 +40,13 @@ const std::unordered_map<std::string, Character::Info> Character::infos = {
 	{"二次元", {Level::F, {追番::make, 崩三::make}, {}, 100}},
 	{"金正日", {Level::B, {望日::make, 慈父::make}, {}, 188}},
 	{"金日成", {Level::C, {朔日::make}, {}, 199}},
-	{"刘建龙", {Level::D, {徒步::make}, {}, 300}},
+	{"刘建龙", {Level::D, {徒步::make}, {}, 250}},
+	{"拜登",   {Level::A, {健忘::make}, {}, 125}},
+	{"王耘浩", {Level::C, {豪赌::make}, {}, 250}},
+	{"Bulbito Bandito Traktorito", {Level::B, {黑帮::make, 拖拉::make}, {}, 225}},
+	{"曹海涛", {Level::S, {互质::make, 难题::make}, {}, 2022}},
+	{"烟刻瑯", {Level::A, {迷烟::make}, {}, 175}},
+	{"赵帷儒", {Level::S, {创世::make, 补天::make}, {}, 200}},
 };
 
 
@@ -90,6 +96,16 @@ std::string Character::skillsName() const {
 	}
 	for (const auto& as : aSkills) {
 		result += as->getName() + ", ";
+	}
+	return result;
+}
+std::string Character::getSkillsText() const {
+	std::string result;
+	for (const auto& ps : pSkills) {
+		result += "【" + ps->getName() + "】\n" + ps->getInfo() + "\n";
+	}
+	for (const auto& as : aSkills) {
+		result += "【" + as->getName() + "】\n" + as->getInfo() + "\n";
 	}
 	return result;
 }
@@ -184,6 +200,11 @@ void Character::launchPSkills(const PSkill::TriggerTime& currentTriggerTime,
 		//如果时机和角色都符合，则发动
 		if (pSkill->matchTrigger(currentTriggerTime, trigger))
 			pSkill->launch(trigger);
+		//子技能
+		for (auto& sub : pSkill->subSkills) {
+			if (sub->matchTrigger(currentTriggerTime, trigger))
+				sub->launch(trigger);
+		}
 	}
 }
 void Character::addSkill(std::unique_ptr<ASkill> aSkill) {

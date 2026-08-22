@@ -23,6 +23,7 @@ static void initCharacters(GameLogic& gameLogic) {
 static void handleGameOver(ServerNetwork& serverNetwork, GameLogic& gameLogic) {
 	std::optional<std::size_t> winnerId = gameLogic.getWinnerId();
 	serverNetwork.sendGameEnd(winnerId);
+	gameLogic.clearMatchCount();
 
 	if (winnerId.has_value()) {
 		std::size_t wId = winnerId.value();
@@ -33,7 +34,8 @@ static void handleGameOver(ServerNetwork& serverNetwork, GameLogic& gameLogic) {
 		Character::Level lLv = players[lId].get().characterLevel();
 		const auto& slots = serverNetwork.getClientSlots();
 		UserDB::instance().addMatchResult(
-			slots[wId].username, slots[lId].username, wLv, lLv);
+			slots[wId].username, slots[lId].username, wLv, lLv,
+			players[wId].get().getHp() == players[wId].get().getMaxHp());
 
 		std::cout << "[Server] 游戏结束，玩家" << wId << "获胜！" << std::endl;
 	}

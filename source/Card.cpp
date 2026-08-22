@@ -76,11 +76,12 @@ const std::unordered_map<Card::ColorName, std::string, Card::TupleHash> Card::im
 
 const Card Card::back(Card::Color::no, Card::Name::back);
 
-
 // ==================== Card 类 ====================
 
 // 构造 / 静态工厂
 Card::Card(const Color _color, const Name _name) :color(_color), name(_name) {}
+
+Card::Card(const ColorName cn) :Card(cn.first, cn.second) {}
 
 std::unique_ptr<Card> Card::make(const Color _color, const Name _name) {
 	return std::make_unique<Card>(_color, _name);
@@ -111,22 +112,24 @@ Card::ColorName Card::getColorName() const {
 	return std::make_pair(color, name);
 }
 bool Card::isNumber() const {
-	return name == Name::number_0 || name == Name::number_1
-		|| name == Name::number_2 || name == Name::number_3
-		|| name == Name::number_4 || name == Name::number_5
-		|| name == Name::number_6 || name == Name::number_7
-		|| name == Name::number_8 || name == Name::number_9;
+	return is_number(name);
 }
 bool Card::isNotNumber() const {
-	return !isNumber();
+	return !is_number(name);
 }
 bool Card::isAction() const {
-	return name == Name::action_ban || name == Name::action_draw2
-		|| name == Name::action_rev;
+	return is_action(name);
+}
+bool Card::isNotAction() const {
+	return !is_action(name);
 }
 bool Card::isWild() const {
-	return name == Name::wild_pal || name == Name::wild_draw4;
+	return is_wild(name);
 }
+bool Card::isNotWild() const {
+	return !is_wild(name);
+}
+
 int Card::value() const {
 	switch (name) {
 		//数字
@@ -173,6 +176,14 @@ void Card::setName(const Name newName) {
 void Card::set(const Card& other) {
 	setColor(other.getColor());
 	setName(other.getName());
+}
+void Card::set(const Color color, const Name name) {
+	setColor(color);
+	setName(name);
+}
+void Card::set(const ColorName& cn) {
+	setColor(cn.first);
+	setName(cn.second);
 }
 
 // 显示
@@ -270,6 +281,21 @@ std::wstring Card::to_wstring(const Name& name) {
 	case Name::no:           return L"无";
 	default:                 return L"未知";
 	}
+}
+
+bool Card::is_number(const Card::Name name) {
+	return name == Name::number_0 || name == Name::number_1
+		|| name == Name::number_2 || name == Name::number_3
+		|| name == Name::number_4 || name == Name::number_5
+		|| name == Name::number_6 || name == Name::number_7
+		|| name == Name::number_8 || name == Name::number_9;
+}
+bool Card::is_action(const Card::Name name) {
+	return name == Name::action_ban || name == Name::action_draw2
+		|| name == Name::action_rev;
+}
+bool Card::is_wild(const Card::Name name) {
+	return name == Name::wild_pal || name == Name::wild_draw4;
 }
 
 // 友元流输出
@@ -404,14 +430,14 @@ void Hand::print() const {
 	if (!empty()) std::cout << "；当前选择了第" << getSelectedIndex() << "张牌：" << getSelectedCard();
 	std::cout << std::endl;
 }
-void Hand::display(GameRenderer& renderer, const sf::Vector2f& pos, const sf::Vector2f& cardSize, const sf::Vector2f& pointerSize) const {
+void Hand::display(GameRenderer& renderer, const sf::Vector2f& pos, const sf::Vector2f& cardSize, const sf::Vector2f& pointerSize, bool canSelect) const {
 	bool displayPointer = pointerSize != sf::Vector2f{ 0, 0 };
 	const std::size_t foldCardWidth = static_cast<std::size_t>(cardSize.x / 3);
 	std::size_t dx = 0;
 	std::size_t selectedPos = 0;
 	for (std::size_t i = 0; i < count(); ++i) {
 		cards[i]->display(renderer, { pos.x + dx, pos.y }, cardSize);
-		if (selectedIndex == i) {
+		if (displayPointer && selectedIndex == i) {
 			selectedPos = dx;
 			dx += static_cast<std::size_t>(cardSize.x);
 		}
@@ -420,9 +446,9 @@ void Hand::display(GameRenderer& renderer, const sf::Vector2f& pos, const sf::Ve
 		}
 	}
 
-	if (displayPointer && !empty()) {
+	if (displayPointer && !empty() && canSelect) {
 		renderer.displayImage(
-			"cards/pointer.jpg",
+			"cards/pointer/默认.jpg",
 			{ pos.x + selectedPos + cardSize.x / 2 - pointerSize.x / 2,
 			pos.y + cardSize.y },
 			pointerSize
@@ -471,42 +497,33 @@ Hand Hand::clone() const {
 
 // ==================== Pile 类 ====================
 
-// 工厂 / 克隆
+// 工厂
 std::unique_ptr<Pile> Pile::standard() {
 	std::unique_ptr<Pile> standard = std::make_unique<Pile>();
-	constexpr std::array<Card::Color, 4> colors = {
-		Card::Color::blue, Card::Color::green, Card::Color::red, Card::Color::yellow
-	};
-	constexpr std::array<Card::Name, 13> names = {
-		Card::Name::number_0, Card::Name::number_1, Card::Name::number_2, Card::Name::number_3, Card::Name::number_4,
-		Card::Name::number_5, Card::Name::number_6, Card::Name::number_7, Card::Name::number_8, Card::Name::number_9,
-		Card::Name::action_rev, Card::Name::action_ban, Card::Name::action_draw2
-	};
 
-	//非黑牌
-	for (const Card::Color color : colors) {
-		for (const Card::Name name : names) {
+	//非万能牌
+	for (const Card::Color color : Card::colors) {
+		//数字牌
+		for (const Card::Name name : Card::numberCardsFrom0) {
 			auto newCard = std::make_unique<Card>(color, name);
-			//数字牌
-			if (newCard->isNumber()) {
-				//1~9每种颜色4张
-				if (newCard->getName() != Card::Name::number_0) standard->push_back(std::move(newCard), 4);
-				//0每种颜色3张
-				else standard->push_back(std::move(newCard), 3);
-			}
-			//功能牌
-			else if (newCard->isAction()) {
-				//反转，封禁每种颜色4张
-				if (name == Card::Name::action_rev || name == Card::Name::action_ban)
-					standard->push_back(std::move(newCard), 4);
-				//+2每种颜色5张
-				else if (name == Card::Name::action_draw2)
-					standard->push_back(std::move(newCard), 5);
-				else throw;
-			}
+			//1~9每种颜色4张
+			if (newCard->getName() != Card::Name::number_0) standard->push_back(std::move(newCard), 4);
+			//0每种颜色3张
+			else standard->push_back(std::move(newCard), 3);
+		}
+		//功能牌
+		for (const Card::Name name : Card::actionCards) {
+			auto newCard = std::make_unique<Card>(color, name);
+			//反转，封禁每种颜色4张
+			if (name == Card::Name::action_rev || name == Card::Name::action_ban)
+				standard->push_back(std::move(newCard), 4);
+			//+2每种颜色5张
+			else if (name == Card::Name::action_draw2)
+				standard->push_back(std::move(newCard), 5);
 			else throw;
 		}
 	}
+
 	//黑牌
 	auto pal = std::make_unique<Card>(Card::Color::black, Card::Name::wild_pal);
 	auto draw4 = std::make_unique<Card>(Card::Color::black, Card::Name::wild_draw4);
@@ -516,11 +533,6 @@ std::unique_ptr<Pile> Pile::standard() {
 	//洗牌
 	standard->shuffle();
 	return standard;
-}
-Pile Pile::clone() const {
-	Pile newPile;
-	cloneTo(newPile);
-	return newPile;
 }
 
 // 牌堆操作
