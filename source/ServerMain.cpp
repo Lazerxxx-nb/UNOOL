@@ -58,6 +58,7 @@ static void gameLoop(ServerNetwork& serverNetwork, GameLogic& gameLogic) {
 		if (!roundEnded) continue;
 
 		// 一局结束，处理体力扣除
+		gameLogic.launchPSkills(PSkill::TriggerTime::game_end);
 		gameLogic.checkRoundEnd();
 		gameLogic.broadcastState();
 
@@ -95,6 +96,7 @@ int main() {
 	try {
 		while (true) {
 			std::cout << "[Server] 游戏开始！" << std::endl;
+			unool::reloadConfig();
 			initCharacters(gameLogic);
 			gameLogic.broadcastState();
 			gameLoop(serverNetwork, gameLogic);

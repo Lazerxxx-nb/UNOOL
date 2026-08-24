@@ -106,18 +106,6 @@ void GameLogic::forEachOtherPlayerIf(const Player& self,
 	}
 }
 
-void GameLogic::print() const {
-	return;
-	for (const auto& pl : players) {
-		std::cout << "玩家" << pl->getId() << "的手牌：";
-		pl->printHand();
-	}
-	if (lastCard().has_value()) {
-		std::cout << "上一张牌：" << lastCard().value() << std::endl;
-	}
-	else std::cout << "上一张牌：无" << std::endl;
-}
-
 Pile& GameLogic::getPile() { return *pile; }
 
 Pile& GameLogic::getDiscardPile() { return *discardPile; }
@@ -268,7 +256,6 @@ bool GameLogic::runTurn() {
 		altPlayer();
 	}
 
-	print();
 	broadcastState();
 	return gameEnded;
 }
@@ -323,7 +310,19 @@ GameState GameLogic::packStateForPlayer(std::size_t playerId) const {
 		state.discardPile[i] = discardPile->getCardByIndex(i);
 	}
 
+	state.operatingPlayerId = operatingPlayerId;
+
 	return state;
+}
+
+void GameLogic::setOperatingPlayer(std::size_t playerId) {
+	operatingPlayerId = playerId;
+	broadcastState();
+}
+
+void GameLogic::clearOperatingPlayer() {
+	operatingPlayerId = std::nullopt;
+	broadcastState();
 }
 
 void GameLogic::flushCharInfo() {

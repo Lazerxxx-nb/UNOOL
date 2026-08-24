@@ -28,11 +28,11 @@ private:
 
 	void setInput(sf::Keyboard::Scancode input) { currentInput = input; }
 	sf::Keyboard::Scancode getInput() const { return currentInput; }
-	opt_ref<Card> chooseToUse();
+	opt_ref<Card> chooseToUse(ASkill::TriggerTime phase = ASkill::TriggerTime::never);
 
 public:
 	std::optional<std::size_t> chooseCard(std::function<bool(const Card&)> condition,
-										  bool forced);
+										  bool forced, ASkill::TriggerTime phase = ASkill::TriggerTime::never);
 #pragma region 玩家属性
 	Player(const std::size_t _id, GameLogic& _game, std::unique_ptr<Character> _character)
 		:id(_id), game(_game), character(std::move(_character)) {}
@@ -66,6 +66,8 @@ public:
 	bool handInclude(const std::function<bool(const Card&)>& condition) const { return hand->include(condition); }
 	bool handExclude(const std::function<bool(const Card&)>& condition) const { return hand->exclude(condition); }
 	bool hasPSkill(const std::string& name) const { return character->hasPSkill(name); }
+	std::list<std::unique_ptr<ASkillInstantBase>>&   getInstantSkills()   { return character->getInstantSkills(); }
+	std::list<std::unique_ptr<ASkillTransformBase>>& getTransformSkills() { return character->getTransformSkills(); }
 #pragma endregion
 
 #pragma region 手牌操作 - 委托到 Hand
@@ -77,7 +79,7 @@ public:
 	void handSelectLast() { hand->selectLast(); }
 	void sortHand() { hand->sort(); }
 
-	void gainCard(std::unique_ptr<Card> card) { hand->push_back(std::move(card)); }
+	void gainCard(std::unique_ptr<Card> card);
 	Card& getCardByIndex(const std::size_t index) { return hand->getCardByIndex(index); }
 	void printHand() const { hand->print(); }
 	void displayHand(GameRenderer& renderer,
@@ -144,9 +146,10 @@ public:
 													const std::function<bool(const Player&)>& condition
 													= unool::alwaysTrue);
 	[[nodiscard]] std::optional<Card::Color> chooseCardColor(const std::wstring& title, bool forced,
-															 const std::vector<Card::Color>& colors);
+															 const std::vector<Card::Color>& colors
+															 = { Card::Color::blue, Card::Color::green, Card::Color::red, Card::Color::yellow });
 	[[nodiscard]] std::optional<Card::Name> chooseCardName(const std::wstring& title, bool forced,
-															 const std::vector<Card::Name>& names);
+														   const std::vector<Card::Name>& names);
 	[[nodiscard]] std::size_t ask(const std::wstring& title, const std::vector<std::wstring>& options,
 								  bool forced, std::optional<std::chrono::milliseconds> timeoutMs = std::nullopt);
 	void hint(const std::wstring& message);
